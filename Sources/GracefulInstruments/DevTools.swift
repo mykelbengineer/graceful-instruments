@@ -97,7 +97,35 @@ enum DevTools {
             print("failed: \(maker.jobs.first?.status ?? "")")
             return 1
         }
+        if let i = args.firstIndex(of: "--counttest"), i + 1 < args.count {
+            CountTest.run(title: args[i + 1], bars: i + 2 < args.count ? Int(args[i + 2]) ?? 1 : 1)
+            return 0
+        }
         return nil
+    }
+}
+
+/// --counttest "title" [bars]: presses Play on a library song with a count-in, the way the app does, and prints
+/// the left/right level every quarter second (uses this Mac's saved settings; changes nothing on disk).
+enum CountTest {
+    static func run(title: String, bars: Int) {
+        let model = AppModel(engine: AudioEngine(offline: true))
+        guard let it = model.items.first(where: { $0.title.localizedCaseInsensitiveContains(title) }) else { print("no match"); return }
+        model.open(it.id)
+        while model.loadingID != nil { RunLoop.main.run(until: Date().addingTimeInterval(0.05)) }
+        RunLoop.main.run(until: Date().addingTimeInterval(0.2))
+        let bpm = model.current?.playingBPM ?? 0
+        print("\(it.title): \(it.kind.label), \(formatBPM(bpm)) BPM, count route \(model.countRoute.rawValue), music route \(model.musicRoute.rawValue)")
+        model.engine.st.countVoice = true
+        model.engine.play(from: 0, countInBars: bars) // what model.play() calls when Count-in is on
+        let seconds = 60 / max(bpm, 1) * Double(model.current?.timeSig.beatsPerBar ?? 4) * Double(bars) + 2
+        let (l, r) = SelfTest.render(model.engine, seconds: seconds)
+        let w = Int(AudioData.sampleRate / 4)
+        var i = 0
+        while i + w <= l.count {
+            print(String(format: "%5.2f s  L %.4f  R %.4f", Double(i) / AudioData.sampleRate, SelfTest.rms(l[i..<(i + w)]), SelfTest.rms(r[i..<(i + w)])))
+            i += w
+        }
     }
 }
 

@@ -25,7 +25,8 @@ final class AppModel: ObservableObject {
     // Where each sound goes. Defaults match the church board: music right (house), band sounds left (in-ears).
     @Published var musicRoute: Route = .right { didSet { applyRoutes() } }
     @Published var clickRoute: Route = .left { didSet { applyRoutes() } }
-    @Published var countRoute: Route = .left { didSet { applyRoutes() } }
+    /// The count-in always goes where the click goes (a separate setting was easy to leave on the wrong side).
+    var countRoute: Route { clickRoute }
     @Published var cueRoute: Route = .left { didSet { applyRoutes() } }
     @Published var stemRoute: Route = .left { didSet { applyRoutes() } }
     @Published var clickOn = false { didSet { engine.st.clickOn = clickOn || current?.kind == .metronome; saveSettings() } }
@@ -162,10 +163,10 @@ final class AppModel: ObservableObject {
     private func loadSettings() {
         loadingSettings = true
         let d = UserDefaults.standard
+        d.removeObject(forKey: "countRoute") // now follows the click
         func route(_ k: String) -> Route? { d.string(forKey: k).flatMap(Route.init(rawValue:)) }
         if let r = route("musicRoute") { musicRoute = r }
         if let r = route("clickRoute") { clickRoute = r }
-        if let r = route("countRoute") { countRoute = r }
         if let r = route("cueRoute") { cueRoute = r }
         if let r = route("stemRoute") { stemRoute = r }
         clickOn = d.bool(forKey: "clickOn")
@@ -193,7 +194,6 @@ final class AppModel: ObservableObject {
         let d = UserDefaults.standard
         d.set(musicRoute.rawValue, forKey: "musicRoute")
         d.set(clickRoute.rawValue, forKey: "clickRoute")
-        d.set(countRoute.rawValue, forKey: "countRoute")
         d.set(cueRoute.rawValue, forKey: "cueRoute")
         d.set(stemRoute.rawValue, forKey: "stemRoute")
         d.set(clickOn, forKey: "clickOn")
@@ -224,16 +224,16 @@ final class AppModel: ObservableObject {
 
     /// Church board setup: music to the house (right), click, count-in and cues to the in-ears (left).
     func presetSplit() {
-        musicRoute = .right; clickRoute = .left; countRoute = .left; cueRoute = .left; stemRoute = .left
+        musicRoute = .right; clickRoute = .left; cueRoute = .left; stemRoute = .left
     }
 
     /// Practice / headphones: everything on both sides.
     func presetBoth() {
-        musicRoute = .both; clickRoute = .both; countRoute = .both; cueRoute = .both; stemRoute = .both
+        musicRoute = .both; clickRoute = .both; cueRoute = .both; stemRoute = .both
     }
 
     var isSplitPreset: Bool {
-        musicRoute == .right && clickRoute == .left && countRoute == .left && cueRoute == .left && stemRoute == .left
+        musicRoute == .right && clickRoute == .left && cueRoute == .left && stemRoute == .left
     }
 
     private func applyVolumes() {
@@ -719,6 +719,9 @@ final class AppModel: ObservableObject {
         if let it = current, it.loopOn, let ls = it.loopStart, let le = it.loopEnd, from >= le - 0.05 { from = ls }
         if let it = current, !it.loopOn, from >= it.duration - 0.05 { from = 0 }
         let canCount = current?.bpm != nil && current?.kind != .metronome
+        if countInBars > 0 && !canCount && current?.kind != .metronome {
+            status = "No count-in: this track's tempo isn't known yet (set it under Tempo & Sound > Track tempo)."
+        }
         engine.play(from: from, countInBars: canCount ? countInBars : 0)
         clock.playing = true
     }

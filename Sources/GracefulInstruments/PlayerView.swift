@@ -329,7 +329,7 @@ struct PlayerView: View {
                     .toggleStyle(SwitchToggleStyle()).labelsHidden()
                 CardTitle(title: "Count-in", systemImage: "timer")
                 Spacer(minLength: 4)
-                RoutePicker(route: $model.countRoute)
+                Text("Plays where the click goes: \(model.clickRoute.label)").foregroundColor(.secondary).lineLimit(1)
             }
             if model.countInBars > 0 {
                 FieldRow("Length") {
@@ -337,7 +337,7 @@ struct PlayerView: View {
                     Toggle("Speak the count", isOn: $model.countVoice).padding(.leading, 8)
                 }
             } else {
-                Caption("Plays one or two bars of click before the music starts, so the band comes in together.")
+                Caption("Plays one or two bars of click before the music starts, so the band comes in together. Turn it on, then press Play.")
             }
         }
     }
@@ -572,8 +572,7 @@ struct SettingsView: View {
                         .help("For practice or headphones")
                 }
                 FieldRow("Music") { RoutePicker(route: $model.musicRoute) }
-                FieldRow("Click") { RoutePicker(route: $model.clickRoute) }
-                FieldRow("Count-in") { RoutePicker(route: $model.countRoute) }
+                FieldRow("Click, count-in") { RoutePicker(route: $model.clickRoute) }
                 FieldRow("Cues") { RoutePicker(route: $model.cueRoute) }
                 FieldRow("In-ear stems") { RoutePicker(route: $model.stemRoute) }
                 Caption("Church split: at the board, send the LEFT channel to the in-ear mixes only, never to the house. The RIGHT channel carries the music in mono for the house and the in-ears. A sound sent to one side is mono; music sent to Both stays stereo.")
