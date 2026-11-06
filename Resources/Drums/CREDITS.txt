@@ -1,0 +1,5 @@
+Drum and percussion samples (all CC0 1.0, public domain):
+- Virtuosity Drums by Versilian Studios and Karoryfer Samples (github.com/sfzinstruments/virtuosity_drums)
+- Versilian Community Sample Library (VCSL) by Versilian Studios (github.com/sgossner/VCSL)
+- Swirly Drums by Karoryfer Samples (github.com/sfzinstruments/karoryfer.swirly-drums)
+Trimmed and converted by scripts/make-drums.py.
