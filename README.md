@@ -36,3 +36,7 @@ Run the checks with `.build/release/GracefulInstruments --selftest`. Other comma
 | `scripts/` | build, deploy, and the scripts that make the cues, drums and icon |
 
 The library lives in `~/Music/Graceful Instruments`.
+
+## License
+
+MIT (see `LICENSE`). The drum samples are CC0 (see `Resources/Drums/CREDITS.txt`).
