@@ -210,14 +210,12 @@ struct RemoteView: View {
                         if server.address.isEmpty {
                             Caption("This Mac isn't on a network. Join the church Wi-Fi first.")
                         } else {
-                            Text(verbatim: "http://\(server.address):\(RemoteServer.port)").font(.system(size: 13, design: .monospaced)).lineLimit(1)
-                                .textSelection()
+                            Caption("Scan with the phone's camera. The code is the key: anyone who scans it can control the app, so don't share a photo of it.")
                             HStack(spacing: 6) {
-                                Text("Code").foregroundColor(.secondary)
-                                Text(server.pin).font(.system(size: 22, weight: .bold, design: .monospaced))
-                                Spacer()
-                                Button("New code") { server.newPIN() }.big()
+                                Button("New code") { server.newToken() }.big()
+                                    .help("Makes a new code. Every phone has to scan again.")
                                 Button("Refresh") { server.refreshAddress() }.big()
+                                    .help("Look up this Mac's network address again (after changing Wi-Fi)")
                             }
                         }
                         if !server.message.isEmpty { Caption(server.message) }

@@ -2,9 +2,12 @@ import Foundation
 import Network
 import AppKit
 import CoreImage
+import Security
 
 /// A small web page on the church Wi-Fi so a phone can run the app: open the address (or scan the code) in the phone's browser.
-/// Every request must carry the 4-digit code, so someone else on the network can't take over.
+/// Every request must carry a long random key that only the QR code holds, so someone else on the network
+/// can't guess it. Wrong keys lock that device out for a while, and requests for other host names are refused
+/// (so a web page can't reach the app through a DNS trick).
 final class RemoteServer: ObservableObject {
     static let shared = RemoteServer()
     static let port: UInt16 = 7700
@@ -14,25 +17,64 @@ final class RemoteServer: ObservableObject {
     @Published var lastPhone = ""
     @Published var message = ""
     @Published var enabled: Bool { didSet { UserDefaults.standard.set(enabled, forKey: "remoteEnabled"); enabled ? start() : stop() } }
-    @Published var pin: String
+    @Published private(set) var token: String
 
     weak var model: AppModel?
     private var listener: NWListener?
     private let queue = DispatchQueue(label: "gi.remote")
+    /// Wrong keys per device (only touched on `queue`).
+    private var failures: [String: (count: Int, until: Date)] = [:]
+    private static let maxFailures = 5
+    private static let lockout: TimeInterval = 600
 
     init() {
         let d = UserDefaults.standard
-        enabled = d.object(forKey: "remoteEnabled") == nil ? true : d.bool(forKey: "remoteEnabled")
-        if let p = d.string(forKey: "remotePIN"), p.count == 4 { pin = p }
-        else { pin = String(format: "%04d", Int.random(in: 0...9999)); d.set(pin, forKey: "remotePIN") }
+        // Off until someone turns it on.
+        enabled = d.bool(forKey: "remoteEnabled")
+        if let t = d.string(forKey: "remoteToken"), t.count == 32 { token = t }
+        else { token = RemoteServer.makeToken(); d.set(token, forKey: "remoteToken") }
+        currentToken = token
+        d.removeObject(forKey: "remotePIN") // the old 4-digit code
     }
 
-    func newPIN() {
-        pin = String(format: "%04d", Int.random(in: 0...9999))
-        UserDefaults.standard.set(pin, forKey: "remotePIN")
+    /// 128 random bits as hex.
+    static func makeToken() -> String {
+        var bytes = [UInt8](repeating: 0, count: 16)
+        if SecRandomCopyBytes(kSecRandomDefault, bytes.count, &bytes) != errSecSuccess {
+            for i in bytes.indices { bytes[i] = UInt8.random(in: 0...255) }
+        }
+        return bytes.map { String(format: "%02x", $0) }.joined()
     }
 
-    var url: String { address.isEmpty ? "" : "http://\(address):\(RemoteServer.port)/?k=\(pin)" }
+    /// A new key: every phone has to scan the code again.
+    func newToken() {
+        token = RemoteServer.makeToken()
+        UserDefaults.standard.set(token, forKey: "remoteToken")
+        let t = token
+        queue.async { self.failures.removeAll(); self.currentToken = t }
+    }
+
+    /// Copy of the key that the network queue reads (only changed on `queue`).
+    private var currentToken = ""
+
+    var url: String { address.isEmpty ? "" : "http://\(address):\(RemoteServer.port)/?k=\(token)" }
+
+    /// Compares without stopping at the first wrong character, so timing gives nothing away.
+    private static func same(_ a: String, _ b: String) -> Bool {
+        let x = Array(a.utf8), y = Array(b.utf8)
+        guard x.count == y.count else { return false }
+        var diff: UInt8 = 0
+        for i in x.indices { diff |= x[i] ^ y[i] }
+        return diff == 0
+    }
+
+    /// Only plain addresses (192.168.x.x), localhost and .local names: anything else is a DNS-rebinding attempt.
+    private static func allowedHost(_ host: String) -> Bool {
+        let h = (host.split(separator: ":").first.map(String.init) ?? "").lowercased()
+        if h == "localhost" || h.hasSuffix(".local") { return true }
+        let parts = h.split(separator: ".")
+        return parts.count == 4 && parts.allSatisfy { UInt8($0) != nil }
+    }
 
     func startIfEnabled() { if enabled { start() } }
 
@@ -100,7 +142,7 @@ final class RemoteServer: ObservableObject {
                 if let d = data { buffer.append(d) }
                 if let r = buffer.range(of: Data("\r\n\r\n".utf8)) {
                     let head = String(data: buffer[..<r.lowerBound], encoding: .utf8) ?? ""
-                    self.respond(c, head: head)
+                    self.respond(c, head: head, peer: RemoteServer.peerName(c))
                 } else if done || err != nil || buffer.count > 65536 {
                     c.cancel()
                 } else {
@@ -111,8 +153,19 @@ final class RemoteServer: ObservableObject {
         readMore()
     }
 
-    private func respond(_ c: NWConnection, head: String) {
-        let first = head.components(separatedBy: "\r\n").first ?? ""
+    private static func peerName(_ c: NWConnection) -> String {
+        if case let .hostPort(host, _) = c.endpoint { return "\(host)" }
+        return "unknown"
+    }
+
+    private func respond(_ c: NWConnection, head: String, peer: String) {
+        let lines = head.components(separatedBy: "\r\n")
+        let first = lines.first ?? ""
+        let host = lines.dropFirst().first { $0.lowercased().hasPrefix("host:") }
+            .map { String($0.dropFirst(5)).trimmingCharacters(in: .whitespaces) } ?? ""
+        guard RemoteServer.allowedHost(host) else {
+            send(c, status: "403 Forbidden", type: "text/plain", body: Data("forbidden".utf8)); return
+        }
         let parts = first.split(separator: " ")
         guard parts.count >= 2 else { c.cancel(); return }
         let target = String(parts[1])
@@ -126,10 +179,21 @@ final class RemoteServer: ObservableObject {
             type = "text/html; charset=utf-8"
             body = Data(RemotePage.html.utf8)
         } else if path.hasPrefix("/api/") {
-            if q["k"] != pin {
+            let now = Date()
+            if let f = failures[peer], f.count >= RemoteServer.maxFailures, f.until > now {
+                status = "429 Too Many Requests"
+                body = Data(#"{"error":"locked"}"#.utf8)
+            } else if !RemoteServer.same(q["k"] ?? "", currentToken) {
+                var f = failures[peer] ?? (0, now)
+                if f.until <= now { f.count = 0 }
+                f.count += 1
+                f.until = now.addingTimeInterval(RemoteServer.lockout)
+                failures[peer] = f
+                if failures.count > 500 { failures = failures.filter { $0.value.until > now } }
                 status = "403 Forbidden"
                 body = Data(#"{"error":"code"}"#.utf8)
             } else {
+                failures[peer] = nil
                 let action = path == "/api/do" ? q["a"] : nil
                 let value = q["v"]
                 body = DispatchQueue.main.sync { () -> Data in
@@ -140,6 +204,10 @@ final class RemoteServer: ObservableObject {
         } else {
             status = "404 Not Found"; type = "text/plain"; body = Data("not found".utf8)
         }
+        send(c, status: status, type: type, body: body)
+    }
+
+    private func send(_ c: NWConnection, status: String, type: String, body: Data) {
         var out = Data("HTTP/1.1 \(status)\r\nContent-Type: \(type)\r\nContent-Length: \(body.count)\r\nCache-Control: no-store\r\nConnection: close\r\n\r\n".utf8)
         out.append(body)
         c.send(content: out, completion: .contentProcessed { _ in c.cancel() })

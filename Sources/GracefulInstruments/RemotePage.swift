@@ -104,10 +104,11 @@ const pk=$('padkeys'); names.forEach((n,i)=>{const b=document.createElement('but
 let lastSvc='';
 function esc(s){return String(s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]))}
 async function call(path){
-  if(!k){k=prompt('Enter the 4-digit code shown in Graceful Instruments (Phone Remote, in the sidebar)')||'';localStorage.setItem('gik',k)}
+  if(!k){$('err').style.display='block';$('err').textContent='Scan the code under Phone Remote in Graceful Instruments with the phone camera.';return}
   try{
     const r=await fetch(path+(path.includes('?')?'&':'?')+'k='+encodeURIComponent(k),{cache:'no-store'});
-    if(r.status==403){$('err').style.display='block';$('err').textContent='Wrong code. Scan the code on the MacBook again.';localStorage.removeItem('gik');k='';return}
+    if(r.status==403){$('err').style.display='block';$('err').textContent='This phone is no longer allowed. Scan the code on the MacBook again.';localStorage.removeItem('gik');k='';return}
+    if(r.status==429){$('err').style.display='block';$('err').textContent='Too many wrong codes from this phone. Wait 10 minutes, then scan the code again.';return}
     $('err').style.display='none';
     show(await r.json());
   }catch(e){$('err').style.display='block';$('err').textContent='Can\'t reach the MacBook. Is it on the same Wi-Fi, with the app open?'}
