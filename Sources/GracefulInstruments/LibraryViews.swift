@@ -53,6 +53,10 @@ struct ContentView: View {
             let args = CommandLine.arguments
             if let i = args.firstIndex(of: "--section"), i + 1 < args.count {
                 switch args[i + 1] {
+                case "tracks": section = .tracks
+                case "loops": section = .loops
+                case "grooves": section = .grooves
+                case "stemsList": section = .stems
                 case "metronome": section = .metronome
                 case "downloads": section = .downloads
                 case "stems": section = .stemMaker

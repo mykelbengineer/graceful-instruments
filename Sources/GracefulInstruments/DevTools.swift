@@ -11,7 +11,7 @@ import AppKit
 ///   --make-stems "title" [--six]  split a library song
 ///   --snapshot <dir> [w h]     draw each screen to PNG (GI_LIBRARY_DIR for a test library)
 ///   --memtest [rounds]         load every song repeatedly and print memory use
-/// GUI launch options: --open "title" [--autoplay], --section keys|pads|remote|midi|metronome|downloads|stems|service
+/// GUI launch options: --open "title" [--autoplay], --section tracks|loops|grooves|stemsList|keys|pads|remote|midi|metronome|downloads|stems|service
 enum DevTools {
     /// Returns an exit code when a command-line mode ran, nil to start the app normally.
     static func run(_ args: [String]) -> Int32? {

@@ -4,6 +4,8 @@ A Mac app for a church band's laptop: plays loops, backing tracks and grooves wi
 
 Built for a 2015 MacBook Pro on macOS 11 Big Sur. It runs on anything newer too.
 
+![The player](docs/screenshots/player.png)
+
 ## What it does
 
 - **Playback**: tracks, loops, stem packs and services (setlists). Change tempo and key, loop by bars, save portions, fade out.
@@ -14,6 +16,10 @@ Built for a 2015 MacBook Pro on macOS 11 Big Sur. It runs on anything newer too.
 - **Chords and lyrics**: chord charts worked out from the recording, and lyrics found to match the track. Export lyrics as a PDF.
 - **Remote control**: a phone remote over Wi-Fi (scan a QR code), plus Yamaha MOXF8 (or any MIDI) button control.
 - **Downloads and stems**: download from YouTube, and split songs into stems on the Mac.
+
+| Key Finder and chord chart | Grooves | Pads and loop tools |
+| --- | --- | --- |
+| ![Key Finder and chords](docs/screenshots/chords.png) | ![Grooves](docs/screenshots/grooves.png) | ![Pads and loop](docs/screenshots/pads.png) |
 
 ## Build
 
