@@ -88,11 +88,12 @@ struct SidebarView: View {
         List(selection: $section) {
             Section(header: Text("Services")) {
                 ForEach(model.setlists) { s in
+                    // The tag must be the last modifier: after .contextMenu, Big Sur can't select the row.
                     ServiceRow(service: s, active: model.activeSetlist == s.id)
-                        .tag(SidebarSection.service(s.id))
                         .contextMenu {
                             Button("Delete Service") { model.deleteSetlist(s.id); section = .all }
                         }
+                        .tag(SidebarSection.service(s.id))
                 }
                 Button(action: { creating = true }) {
                     SidebarRow(title: "New Service…", icon: "plus.circle.fill")
